@@ -13,9 +13,8 @@ import { chainAllTasksInSeries } from './utils';
         );
         const urls = await page.$$eval('#video-title', (videos) => videos.map(video => 'https://youtube.com' + video.getAttribute('href')));
         page.close();
-        const funcs: (() => Promise<void>)[] = urls.map((url, index) => () => {
-            return Promise.resolve(clickAds(browser, url, index === 0));
-        });
+        const sharedObject = {};
+        const funcs: (() => Promise<void>)[] = urls.map(url => () => Promise.resolve(clickAds(browser, url, sharedObject)));
         await chainAllTasksInSeries(funcs);
         console.log('Done');
     } catch (err) {
@@ -24,14 +23,15 @@ import { chainAllTasksInSeries } from './utils';
     }
 }())
 
-async function clickAds(browser: puppeteer.Browser, url: string, firstCheck: boolean) {
+async function clickAds(browser: puppeteer.Browser, url: string, sharedObject: any) {
     const page = await browser.newPage();
     try {
         await page.goto(url);
-        if (firstCheck) {
+        if (!sharedObject.NoThanksClicked) {
             await waitForNavigation(page, 10000, 'paper-button[aria-label="No thanks"]');
             await page.click('paper-button[aria-label="No thanks"]', { delay: 200 });
         }
+        sharedObject.NoThanksClicked = true
         await page.keyboard.press('k');
         const playButton = await page.$('button[aria-label="Play (k)"]');
         playButton?.click();
