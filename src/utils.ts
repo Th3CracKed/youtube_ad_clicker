@@ -7,3 +7,14 @@ export async function findAsync<T>(array: T[], predicate: (value: T, index?: num
 export function generateRandomPassword(numberOfCharacters = 12) {
     return Math.random().toString(36).slice(-numberOfCharacters);
 }
+
+
+export function chainAllTasksInSeries<T>(tasksFactory: (() => Promise<T>)[]): Promise<T[]> {
+    return tasksFactory.reduce((promiseChain, currentTask) => {
+        return promiseChain.then(chainResults =>
+            currentTask().then(currentResult =>
+                [...chainResults, currentResult]
+            )
+        );
+    }, Promise.resolve([]));
+}

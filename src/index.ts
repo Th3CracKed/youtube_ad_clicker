@@ -1,6 +1,7 @@
-import { ElementHandle, Page } from 'puppeteer';
 import puppeteer from 'puppeteer';
 import { waitForNavigation } from './helper';
+
+import { chainAllTasksInSeries } from './utils';
 (async function () {
     const browser = await puppeteer.launch({ headless: false })
     try {
@@ -10,33 +11,43 @@ import { waitForNavigation } from './helper';
             { name: 'CONSENT', value: 'YES+FR.en+V9+BX', domain: '.youtube.com' },
             { name: 'CONSENT', value: 'YES+FR.en+V9+BX', domain: 'www.youtube.com' },
         );
-        const videos = await page.$$('#video-title');
-        // videos.forEach(async video => await clickAds(page, video));)
-        clickAds(page, videos[0]);
+        const urls = await page.$$eval('#video-title', (videos) => videos.map(video => 'https://youtube.com' + video.getAttribute('href')));
+        page.close();
+        const funcs: (() => Promise<void>)[] = urls.map((url, index) => () => {
+            return Promise.resolve(clickAds(browser, url, index === 0));
+        });
+        await chainAllTasksInSeries(funcs);
+        console.log('Done');
     } catch (err) {
         console.error('Something Wrong happened while creating an account');
         console.error(err);
     }
 }())
 
-async function clickAds(page: Page, video: ElementHandle<Element>) {
-    await video.click();
-    await waitForNavigation(page, 30000, '#player');
-    await waitForNavigation(page, 10000, 'paper-button[aria-label="No thanks"]');
-    await page.click('paper-button[aria-label="No thanks"]', { delay: 200 });
-    // await page.waitForTimeout(4000);
-    await page.keyboard.press('k');
-    const selectors = [
-        '[id^="visit-advertiser"]',
-        '[id^="invideo-overlay"]',
-        '#action-companion-click-target'
-    ];
-    await waitForNavigation(page, 10000, ...selectors);
+async function clickAds(browser: puppeteer.Browser, url: string, firstCheck: boolean) {
+    const page = await browser.newPage();
     try {
+        await page.goto(url);
+        if (firstCheck) {
+            await waitForNavigation(page, 10000, 'paper-button[aria-label="No thanks"]');
+            await page.click('paper-button[aria-label="No thanks"]', { delay: 200 });
+        }
+        await page.keyboard.press('k');
+        const playButton = await page.$('button[aria-label="Play (k)"]');
+        playButton?.click();
+        const selectors = [
+            '[id^="visit-advertiser"]',
+            '[id^="invideo-overlay"]',
+            '#action-companion-click-target',
+            '.ytp-ad-overlay-title'
+            // TODO support more ads type
+        ];
+        await waitForNavigation(page, 20000, ...selectors);
         await Promise.all(selectors.map(selector => page.click(selector)));
+    } catch (err) {
+        console.error(err);
     } finally {
+        await page.waitForTimeout(2000); // wait for ads click to count
         page.close();
     }
-
-    //ytp-ad-skip-button
 }
