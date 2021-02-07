@@ -1,5 +1,6 @@
 import { Page } from 'puppeteer';
 import { findAsync } from './utils';
+const any = require('promise.any');
 
 export async function getElement(page: Page, textToSearchFor: string, selector: string, containerSelector = 'body') {
   const container = await page.$(containerSelector);
@@ -18,7 +19,7 @@ export async function checkIfTextExistsInAPage(page: Page, textToCheck: string) 
 }
 
 export async function waitForNavigation(page: Page, timeout: number, ...selectors: string[]) {
-  await Promise.race(
+  await any(
     selectors.map(async selector => await page.waitForSelector(selector, { visible: true, timeout }))
   )
   await page.waitForFunction(() => document.readyState === 'complete');
